@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rocket Escape 1.6</title>
+<style>
+  :root{
+    --bg0:#000000;
+    --bg1:#050520;
+    --panel:rgba(0,0,0,.35);
+    --primary:#0a74da;
+    --primary-strong:#074a94;
+    --text:#ffffff;
+    --accent:#ffd54a;
+    --danger:#ff4a4a;
+    --success:#28d07f;
+    --shadow:0 10px 40px rgba(0,0,0,.35);
+  }
+  [data-theme="neon"]{
+    --bg0:#050007;
+    --bg1:#0b022a;
+    --panel:rgba(10,0,30,.4);
+    --primary:#a200ff;
+    --primary-strong:#6b00ad;
+    --accent:#00fff5;
+  }
+  [data-theme="retro"]{
+    --bg0:#0d0d0d;
+    --bg1:#112b25;
+    --panel:rgba(15,40,35,.42);
+    --primary:#ff9f1c;
+    --primary-strong:#c96f00;
+    --accent:#2ec4b6;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body {
+    margin:0; padding:0;
+    overflow:hidden;
+    background: radial-gradient(ellipse at center, var(--bg0) 0%, var(--bg1) 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text);
+    user-select:none;
+  }
+  #gameArea {
+    position: relative;
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Parallax layers */
+  .parallax{position:absolute; inset:0; overflow:hidden; pointer-events:none}
+  .stars{position:absolute; width:2px; height:2px; background:rgba(255,255,255,.7); box-shadow:
+      10vw 10vh 0 0 rgba(255,255,255,.5),
+      20vw 30vh 0 0 rgba(255,255,255,.6),
+      70vw 60vh 0 0 rgba(255,255,255,.4),
+      85vw 20vh 0 0 rgba(255,255,255,.55),
+      40vw 80vh 0 0 rgba(255,255,255,.5);
+    border-radius:50%;
+  }
+  .layer1{opacity:.6}
+  .layer2{opacity:.35}
+  .layer3{opacity:.2}
+
+  /* Rocket – pinned to left: left:0; transform align with x */
+  #rocket {
+    position: absolute;
+    bottom: 64px;
+    left: 0;
+    transform: translate(0, 0);
+    font-size: 64px;
+    pointer-events: none;
+    will-change: transform;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,.6));
+  }
+  /* Exhaust trail */
+  .trail{
+    position:absolute;
+    width:6px; height:12px; border-radius:6px;
+    background: linear-gradient(to bottom, rgba(255,255,255,.85), rgba(255,255,255,0));
+    filter: blur(1px);
+    pointer-events:none;
+  }
+
+  .falling {
+    position: absolute;
+    font-size: 48px;
+    user-select: none;
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  #hudTopRight, #hudTopLeft {
+    position: absolute; top: 10px;
+    font-size: 16px; font-weight: 600;
+    background: var(--panel);
+    padding: 8px 12px;
+    border-radius: 10px;
+    z-index: 1000;
+    box-shadow: var(--shadow);
+  }
+  #hudTopRight{ right: 12px;}
+  #hudTopLeft{ left: 12px; display:flex; gap:10px; align-items:center;}
+  .heart{font-size:20px}
+  #multiplier{font-weight:800; color:var(--accent)}
+
+  #controls {
+    position: fixed;
+    bottom: 76px; width: 100%;
+    display: flex; justify-content: space-around; gap:16px;
+    z-index: 1000;
+    padding: 0 16px;
+  }
+  .controlBtn {
+    flex:1 1 0;
+    max-width: 180px;
+    background: #1d1d1d;
+    border: 2px solid #444;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 20px;
+    color: white;
+    padding: 14px 0;
+    touch-action: manipulation;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+  }
+  .controlBtn:active { background:#444; }
+
+  /* Screens */
+  .screen {
+    position: fixed; inset:0;
+    background: rgba(0,0,0,0.88);
+    display: none; flex-direction: column;
+    justify-content: center; align-items: center;
+    z-index: 2000; color: white; text-align:center; padding:24px;
+  }
+  .screen.show{display:flex}
+  h1,h2{margin:.2em 0 .4em}
+  .menuRow{display:flex; flex-wrap:wrap; gap:12px; justify-content:center}
+
+  button.menuBtn {
+    background: var(--primary);
+    border: none;
+    color: white;
+    padding: 12px 18px;
+    margin: 8px 6px;
+    font-size: 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    min-width: 180px;
+    box-shadow: var(--shadow);
+  }
+  button.menuBtn:hover { background: var(--primary-strong); }
+
+  .panel {
+    background: var(--panel);
+    padding:14px;
+    border-radius:12px;
+    box-shadow: var(--shadow);
+    margin:8px auto;
+    max-width: min(680px, 92vw);
+  }
+
+  #skinList, #trailList, #themeList, #badgeList{
+    display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:8px;
+  }
+  .skinItem, .trailItem, .themeItem, .badgeItem{
+    font-size: 40px;
+    cursor: pointer;
+    user-select: none;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    padding: 6px 10px;
+    transition: transform .15s, border-color .2s;
+    background: rgba(255,255,255,.06);
+  }
+  .skinItem:hover, .trailItem:hover, .themeItem:hover, .badgeItem:hover{ transform: translateY(-2px) }
+  .selected{ border-color: var(--primary); }
+  .locked{ opacity:.45; cursor:not-allowed; }
+
+  /* Tiny labels */
+  .tag{display:inline-block; font-size:12px; background:#222; border:1px solid #444; padding:2px 6px; border-radius:8px; margin-left:6px}
+
+  /* Shrink animation */
+  @keyframes shrinkFade { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(0); opacity: 0; } }
+  .shrink { animation: shrinkFade 0.5s forwards; }
+
+  /* Footer credit */
+  #footerName {
+    position: fixed;
+    bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 14px; color: var(--text);
+    user-select: none; z-index: 3000; pointer-events: none;
+    letter-spacing:.3px;
+  }
+  #footerBadge {
+    background: var(--primary);
+    width: 28px; height: 28px; border-radius: 9px;
+    color: white; font-weight: 900; font-size: 16px;
+    display:flex; justify-content:center; align-items:center;
+    box-shadow: 0 0 10px var(--primary);
+    line-height:1;
+  }
+  #footerDivider{
+    width: 1px; height: 18px; background: rgba(255,255,255,.25);
+  }
+
+  .hint{font-size:12px; opacity:.85}
+  .toggle{display:flex; align-items:center; gap:8px; justify-content:center; margin:6px 0}
+  .toggle input{transform:scale(1.2)}
+
+  /* HUD mini quests */
+  #miniQuests{position:absolute; top:10px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:1000}
+  .questChip{background:var(--panel); padding:6px 8px; border-radius:999px; font-size:12px; box-shadow:var(--shadow)}
+</style>
+</head>
+<body>
+
+<div id="gameArea" data-theme="default" aria-live="polite">
+  <!-- Parallax -->
+  <div class="parallax layer1"><div class="stars" style="top:10vh; left:-5vw;"></div></div>
+  <div class="parallax layer2"><div class="stars" style="top:30vh; left:-10vw;"></div></div>
+  <div class="parallax layer3"><div class="stars" style="top:60vh; left:-15vw;"></div></div>
+
+  <div id="rocket" aria-label="Rocket">🚀</div>
+
+  <div id="hudTopLeft" class="panel" aria-label="Status">
+    <span id="hearts"></span>
+    <span id="multiplier" class="tag">x1</span>
+  </div>
+  <div id="hudTopRight" class="panel" aria-label="Scoreboard">
+    <div>Score: <span id="scoreSpan">0</span></div>
+    <div>Gold: <span id="goldSpan">0</span></div>
+  </div>
+  <div id="miniQuests" aria-hidden="true"></div>
+</div>
+
+<!-- Touch controls -->
+<div id="controls">
+  <div id="leftBtn" class="controlBtn" aria-label="Move Left">← Left</div>
+  <div id="rightBtn" class="controlBtn" aria-label="Move Right">Right →</div>
+</div>
+
+<!-- MENU: Home -->
+<div id="menuScreen" class="screen show" role="dialog" aria-modal="true">
+  <h1>Rocket Escape <span class="tag">v1.6</span></h1>
+  <div class="panel">
+    <div id="profileCard">
+      <strong>Profile:</strong> <span id="playerNameSpan">Pilot</span>
+      <span class="tag" id="activeBadge">Rookie</span>
+      <div style="margin-top:6px; font-size:14px;">
+        Best Score: <b id="bestScoreSpan">0</b> · Total Gold: <b id="totalGoldSpan">0</b>
+      </div>
+    </div>
+  </div>
+  <div class="menuRow">
+    <button id="startGameBtn" class="menuBtn">Start Game</button>
+    <button id="skinsBtn" class="menuBtn">Skins & Trails</button>
+    <button id="workshopBtn" class="menuBtn">Workshop (Parts)</button>
+    <button id="themesBtn" class="menuBtn">Themes & Settings</button>
+    <button id="achBtn" class="menuBtn">Achievements</button>
+    <button id="questsBtn" class="menuBtn">Daily Quests</button>
+    <button id="leaderBtn" class="menuBtn">Leaderboard (Local)</button>
+  </div>
+  <div class="panel hint">Tip: Grab power-ups (🛡️, 🧲, 🐢), keep your combo, and push the multiplier!</div>
+  <div class="hint">Controls: ←/→ or A/D to move · P to Pause</div>
+</div>
+
+<!-- MENU: Skins -->
+<div id="skinScreen" class="screen" role="dialog" aria-modal="true">
+  <h2>Select Rocket Skin</h2>
+  <div id="skinList" class="panel"></div>
+  <h2>Select Trail</h2>
+  <div id="trailList" class="panel"></div>
+  <div class="panel">Your Gold: <b id="goldAmount">0</b></div>
+  <div class="menuRow">
+    <button id="backFromSkinBtn" class="menuBtn">Back to Menu</button>
+  </div>
+</div>
+
+<!-- MENU: Workshop -->
+<div id="workshopScreen" class="screen" role="dialog" aria-modal="true">
+  <h2>Workshop – Choose Parts</h2>
+  <div class="panel">
+    Assemble your rocket from three parts: <b>Nose / Body / Exhaust</b>.<br/>
+    Each part grants a small passive bonus (light gameplay impact).
+  </div>
+  <div class="panel" id="workshopList"></div>
+  <div class="menuRow"><button id="backFromWorkshopBtn" class="menuBtn">Back to Menu</button></div>
+</div>
+
+<!-- MENU: Themes & Settings -->
+<div id="themesScreen" class="screen" role="dialog" aria-modal="true">
+  <h2>Themes & Settings</h2>
+  <div class="panel">
+    <div><b>Theme:</b></div>
+    <div id="themeList"></div>
+  </div>
+  <div class="panel">
+    <div class="toggle"><label><input type="checkbox" id="toggleHaptics" checked> Vibration</label></div>
+    <div class="toggle"><label><input type="checkbox" id="toggleSFX" checked> Sound Effects</label></div>
+    <div class="toggle"><label><input type="checkbox" id="toggleReducedMotion"> Reduced Motion</label></div>
+    <div class="toggle"><label><input type="checkbox" id="togglePerfMode"> Performance Mode (No Particles)</label></div>
+    <div class="toggle"><label><input type="checkbox" id="toggleTilt"> Tilt Controls (Beta)</label></div>
+    <div class="panel" style="margin-top:10px;">
+      Player Name: <input id="playerNameInput" placeholder="Your name" style="padding:6px 8px; border-radius:8px; border:1px solid #444; background:#111; color:#fff">
+      <button id="saveNameBtn" class="menuBtn" style="min-width:auto; padding:8px 12px;">Save</button>
+    </div>
+  </div>
+  <div class="menuRow"><button id="backFromThemesBtn" class="menuBtn">Back to Menu</button></div>
+</div>
+
+<!-- MENU: Achievements -->
+<div id="achScreen" class="screen" role="dialog" aria-modal="true">
+  <h2>Achievements</h2>
+  <div id="badgeList" class="panel"></div>
+  <div class="menuRow"><button id="backFromAchBtn" class="menuBtn">Back to Menu</button></div>
+</div>
+
+<!-- MENU: Quests -->
+<div id="questsScreen" class="screen" role="dialog" aria-modal="true">
+  <h2>Daily Quests</h2>
+  <div id="questsList" class="panel"></div>
+  <div class="hint">Quests refresh daily. Rewards give cosmetics/gold only.</div>
+  <div class="menuRow"><button id="backFromQuestsBtn" class="menuBtn">Back to Menu</button></div>
+</div>
+
+<!-- MENU: Leaderboard -->
+<div id="leaderScreen" class="screen" role="dialog" aria-modal="true">
+  <h2>Leaderboard (On This Device)</h2>
+  <div id="leaderList" class="panel"></div>
+  <div class="menuRow"><button id="backFromLeaderBtn" class="menuBtn">Back to Menu</button></div>
+</div>
+
+<!-- Game Over -->
+<div id="gameOverScreen" class="screen" role="dialog" aria-modal="true">
+  <h2 id="gameOverText">Game Over!</h2>
+  <div class="panel">
+    Your Score: <b id="finalScore">0</b> · Gold Earned: <b id="earnedGold">0</b>
+    <div id="continueRow" style="margin-top:8px;">
+      <button id="continueBtn" class="menuBtn">Continue (50 Gold)</button>
+    </div>
+  </div>
+  <div class="menuRow">
+    <button id="retryBtn" class="menuBtn">Retry</button>
+    <button id="backToMenuBtn" class="menuBtn">Menu</button>
+  </div>
+</div>
+
+<!-- Pause -->
+<div id="pauseOverlay" class="screen" role="dialog" aria-modal="true">
+  <h2>Paused</h2>
+  <div class="menuRow">
+    <button id="resumeBtn" class="menuBtn">Resume</button>
+    <button id="quitToMenuBtn" class="menuBtn">Menu</button>
+  </div>
+  <div class="hint">Press P to Pause/Resume</div>
+</div>
+
+<!-- Footer -->
+<div id="footerName" aria-hidden="true">
+  <div id="footerBadge">©</div>
+  <div id="footerDivider"></div>
+  <div>Efe Berk Ural</div>
+</div>
+
+<script>
+(()=> {
+  /* =========================
+     PERSISTENT DATA / SETTINGS (v1.6 keys)
+     ========================= */
+  const LS = {
+    gold: 're16_totalGold',
+    skin: 're16_selectedSkin',
+    skinsOwned: 're16_ownedSkins',
+    trail: 're16_selectedTrail',
+    theme: 're16_theme',
+    perf: 're16_perf',
+    reduce: 're16_reduce',
+    haptics: 're16_haptics',
+    sfx: 're16_sfx',
+    tilt: 're16_tilt',
+    best: 're16_best',
+    name: 're16_name',
+    parts: 're16_parts',
+    badges: 're16_badges',
+    ach: 're16_achievements',
+    lb: 're16_leader',
+    quests: 're16_quests'
+  };
+  const getLS = (k, def=null)=>{ try{ const v = localStorage.getItem(k); return v!==null? JSON.parse(v): def; }catch{ return def; } };
+  const setLS = (k, v)=> localStorage.setItem(k, JSON.stringify(v));
+
+  /* =========================
+     ELEMENTS
+     ========================= */
+  const gameArea = document.getElementById('gameArea');
+  const rocketEl = document.getElementById('rocket');
+  const leftBtn = document.getElementById('leftBtn');
+  const rightBtn = document.getElementById('rightBtn');
+
+  const scoreSpan = document.getElementById('scoreSpan');
+  const goldSpan = document.getElementById('goldSpan');
+  const heartsEl = document.getElementById('hearts');
+  const multiplierEl = document.getElementById('multiplier');
+  const miniQuestsEl = document.getElementById('miniQuests');
+
+  const menuScreen = document.getElementById('menuScreen');
+  const startGameBtn = document.getElementById('startGameBtn');
+  const skinsBtn = document.getElementById('skinsBtn');
+  const workshopBtn = document.getElementById('workshopBtn');
+  const themesBtn = document.getElementById('themesBtn');
+  const achBtn = document.getElementById('achBtn');
+  const questsBtn = document.getElementById('questsBtn');
+  const leaderBtn = document.getElementById('leaderBtn');
+
+  const skinScreen = document.getElementById('skinScreen');
+  const skinListDiv = document.getElementById('skinList');
+  const trailListDiv = document.getElementById('trailList');
+  const goldAmountSpan = document.getElementById('goldAmount');
+  const backFromSkinBtn = document.getElementById('backFromSkinBtn');
+
+  const workshopScreen = document.getElementById('workshopScreen');
+  const workshopList = document.getElementById('workshopList');
+  const backFromWorkshopBtn = document.getElementById('backFromWorkshopBtn');
+
+  const themesScreen = document.getElementById('themesScreen');
+  const themeList = document.getElementById('themeList');
+  const toggleHaptics = document.getElementById('toggleHaptics');
+  const toggleSFX = document.getElementById('toggleSFX');
+  const toggleReduced = document.getElementById('toggleReducedMotion');
+  const togglePerf = document.getElementById('togglePerfMode');
+  const toggleTilt = document.getElementById('toggleTilt');
+  const playerNameInput = document.getElementById('playerNameInput');
+  const saveNameBtn = document.getElementById('saveNameBtn');
+
+  const achScreen = document.getElementById('achScreen');
+  const badgeList = document.getElementById('badgeList');
+  const backFromAchBtn = document.getElementById('backFromAchBtn');
+
+  const questsScreen = document.getElementById('questsScreen');
+  const questsList = document.getElementById('questsList');
+  const backFromQuestsBtn = document.getElementById('backFromQuestsBtn');
+
+  const leaderScreen = document.getElementById('leaderScreen');
+  const leaderList = document.getElementById('leaderList');
+  const backFromLeaderBtn = document.getElementById('backFromLeaderBtn');
+
+  const gameOverScreen = document.getElementById('gameOverScreen');
+  const finalScoreSpan = document.getElementById('finalScore');
+  const earnedGoldSpan = document.getElementById('earnedGold');
+  const continueRow = document.getElementById('continueRow');
+  const continueBtn = document.getElementById('continueBtn');
+  const retryBtn = document.getElementById('retryBtn');
+  const backToMenuBtn = document.getElementById('backToMenuBtn');
+
+  const pauseOverlay = document.getElementById('pauseOverlay');
+  const resumeBtn = document.getElementById('resumeBtn');
+  const quitToMenuBtn = document.getElementById('quitToMenuBtn');
+
+  const playerNameSpan = document.getElementById('playerNameSpan');
+  const activeBadgeSpan = document.getElementById('activeBadge');
+  const bestScoreSpan = document.getElementById('bestScoreSpan');
+  const totalGoldSpan = document.getElementById('totalGoldSpan');
+
+  /* =========================
+     STATE
+     ========================= */
+  const state = {
+    running:false, paused:false, gameOver:false, allowContinue:false,
+    score:0, sessionGold:0, totalGold:getLS(LS.gold, 0),
+    best:getLS(LS.best, 0),
+    lives:3, maxLives:3,
+    x: window.innerWidth*0.5, vx:0, speed: 420, // px/s
+    width: 64,
+    selectedSkin: getLS(LS.skin, 0),
+    selectedTrail: getLS(LS.trail, 0),
+    theme: getLS(LS.theme, 'default'),
+    perf: !!getLS(LS.perf, false),
+    reduce: !!getLS(LS.reduce, false),
+    haptics: getLS(LS.haptics, true),
+    sfx: getLS(LS.sfx, true),
+    tilt: getLS(LS.tilt, false),
+    name: getLS(LS.name, 'Pilot'),
+    parts: getLS(LS.parts, {nose:0, body:0, exhaust:0}),
+    badges: getLS(LS.badges, {active:'Rookie', owned:['Rookie']}),
+    achievements: getLS(LS.ach, {}),
+    leaderboard: getLS(LS.lb, []),
+    quests: getLS(LS.quests, null), // daily data
+    combo:0, mult:1,
+    powerups: {shield:false, magnet:false, slow:false},
+    powerTimers: {shield:0, magnet:0, slow:0},
+    spawnTimer:0, nextSpawn: 0.9, // seconds
+    elapsed:0,
+    leftPressed:false, rightPressed:false,
+    tiltX:0
+  };
+
+  /* =========================
+     CONTENT: Skins, Trails, Parts, Themes, Badges
+     ========================= */
+  const skins = [
+    {emoji:'🚀', cost:0, key:'basic'},
+    {emoji:'🛸', cost:50, key:'ufo'},
+    {emoji:'🚁', cost:100, key:'heli'},
+    {emoji:'🛰️', cost:150, key:'sat'},
+  ];
+  const ownedSkins = new Set(getLS(LS.skinsOwned, ['basic']));
+
+  const trails = [
+    {name:'Standard', id:0, icon:'✨', cost:0},
+    {name:'Neon', id:1, icon:'⚡', cost:40},
+    {name:'Star', id:2, icon:'⭐', cost:60},
+    {name:'Smoke', id:3, icon:'🟣', cost:60},
+  ];
+
+  const themes = [
+    {id:'default', label:'Night'},
+    {id:'neon', label:'Neon'},
+    {id:'retro', label:'Retro Pixel'},
+  ];
+
+  const workshopParts = {
+    nose:[
+      {name:'Standard', bonus:'+5% speed', key:0, cost:0},
+      {name:'Sharp Nose', bonus:'+5% speed', key:1, cost:80}
+    ],
+    body:[
+      {name:'Standard', bonus:'—', key:0, cost:0},
+      {name:'Armored', bonus:'+1s shield duration', key:1, cost:100}
+    ],
+    exhaust:[
+      {name:'Standard', bonus:'—', key:0, cost:0},
+      {name:'Turbo', bonus:'+10% combo time', key:1, cost:90}
+    ]
+  };
+
+  const badges = [
+    {code:'Rookie', name:'Rookie'},
+    {code:'StarCadet', name:'Star Cadet'},
+    {code:'MeteorTamer', name:'Meteor Tamer'},
+    {code:'GoldHoarder', name:'Gold Hoarder'}
+  ];
+
+  /* =========================
+     AUDIO / HAPTICS (tiny stub)
+     ========================= */
+  const sfx = {
+    play(name){
+      if(!state.sfx) return;
+      try{
+        const ctx = sfx._ctx || (sfx._ctx=new (window.AudioContext||window.webkitAudioContext)());
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type='sine';
+        if(name==='coin'){ o.frequency.value=880; }
+        else if(name==='hit'){ o.frequency.value=110; }
+        else if(name==='power'){ o.frequency.value=660; }
+        else { o.frequency.value=440; }
+        g.gain.setValueAtTime(0.0001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime+0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.12);
+        o.start(); o.stop(ctx.currentTime+0.13);
+      }catch{}
+    }
+  };
+  const vibrate = (ms)=>{ if(state.haptics && navigator.vibrate) navigator.vibrate(ms); };
+
+  /* =========================
+     HELPERS
+     ========================= */
+  const clamp = (v,min,max)=> v<min?min:(v>max?max:v);
+  const nowISO = ()=> (new Date()).toISOString().slice(0,10);
+
+  /* =========================
+     OBJECT POOLS
+     ========================= */
+  const objects = { obstacles:[], golds:[], powerups:[] };
+
+  function createFalling(type, laneX){
+    const el = document.createElement('div');
+    el.className='falling';
+    let char='⭐';
+    let speed = 180 + Math.random()*80; // px/s
+    if(type==='ob'){
+      char='☄️';
+      speed = 220 + Math.random()*120;
+    }else if(type==='gold'){
+      char='💰';
+      speed = 170 + Math.random()*90;
+    }else if(type==='pow'){
+      const pool = ['🛡️','🧲','🐢'];
+      char = pool[Math.floor(Math.random()*pool.length)];
+      speed = 160 + Math.random()*70;
+    }
+    el.textContent = char;
+    const y = -80;
+    const obj = {type, char, x: laneX-24, y, speed, el, w:48, h:48};
+    el.style.transform = `translate(${obj.x}px, ${obj.y}px)`;
+    gameArea.appendChild(el);
+    if(type==='ob') objects.obstacles.push(obj);
+    else if(type==='gold') objects.golds.push(obj);
+    else objects.powerups.push(obj);
+  }
+
+  /* =========================
+     DAILY QUESTS
+     ========================= */
+  function ensureDailyQuests(){
+    const today = nowISO();
+    if(!state.quests || state.quests.date!==today){
+      state.quests = {
+        date: today,
+        list: [
+          {code:'score150', text:'Score 150+ in one run', goal:150, prog:0, done:false, reward:40, kind:'score'},
+          {code:'collect3Combo', text:'Reach x3 multiplier', goal:3, prog:0, done:false, reward:30, kind:'combo'},
+        ]
+      };
+      setLS(LS.quests, state.quests);
+    }
+  }
+  function updateQuest(kind, value){
+    if(!state.quests) return;
+    for(const q of state.quests.list){
+      if(q.kind===kind && !q.done){
+        if(kind==='score'){
+          q.prog = Math.max(q.prog, value);
+          if(q.prog>=q.goal){ q.done=true; state.totalGold+=q.reward; toast(`Quest completed! +${q.reward} gold`); }
+        }
+        if(kind==='combo'){
+          q.prog = Math.max(q.prog, value);
+          if(q.prog>=q.goal){ q.done=true; state.totalGold+=q.reward; toast(`Quest completed! +${q.reward} gold`); }
+        }
+      }
+    }
+    setLS(LS.quests, state.quests);
+    renderQuestsMini();
+  }
+  function renderQuestsScreen(){
+    questsList.innerHTML='';
+    state.quests.list.forEach(q=>{
+      const div=document.createElement('div');
+      div.className='panel';
+      div.style.margin='8px 0';
+      const status = q.done?'<span class="tag" style="background:var(--success)">Done</span>':'';
+      div.innerHTML = `<b>${q.text}</b><br/>Progress: ${Math.min(q.prog,q.goal)} / ${q.goal} ${status} · Reward: <b>${q.reward}</b> gold`;
+      questsList.appendChild(div);
+    });
+  }
+  function renderQuestsMini(){
+    miniQuestsEl.innerHTML='';
+    state.quests.list.slice(0,2).forEach(q=>{
+      const chip=document.createElement('div');
+      chip.className='questChip';
+      chip.textContent = (q.done?'✔ ':'') + q.text;
+      miniQuestsEl.appendChild(chip);
+    });
+  }
+
+  /* =========================
+     ACHIEVEMENTS
+     ========================= */
+  function earnBadge(code){
+    if(!state.badges.owned.includes(code)){
+      state.badges.owned.push(code);
+      setLS(LS.badges, state.badges);
+      toast(`New title unlocked: ${code}`);
+    }
+  }
+  function checkAchievements(){
+    if(state.score>=200) earnBadge('StarCadet');
+    if(state.sessionGold>=200) earnBadge('GoldHoarder');
+  }
+  function renderBadges(){
+    badgeList.innerHTML='';
+    badges.forEach(b=>{
+      const it=document.createElement('div');
+      it.className='badgeItem'+(state.badges.active===b.code?' selected':'')+ (state.badges.owned.includes(b.code)?'':' locked');
+      it.textContent = '🏅 '+b.name;
+      it.onclick = ()=>{
+        if(!state.badges.owned.includes(b.code)) return;
+        state.badges.active = b.code;
+        setLS(LS.badges, state.badges);
+        activeBadgeSpan.textContent = b.code;
+        renderBadges();
+        toast(`Active title: ${b.code}`);
+      };
+      badgeList.appendChild(it);
+    });
+  }
+
+  /* =========================
+     LEADERBOARD
+     ========================= */
+  function pushLeaderboard(name, score){
+    state.leaderboard.push({name, score, date: nowISO()});
+    state.leaderboard.sort((a,b)=> b.score-a.score);
+    state.leaderboard = state.leaderboard.slice(0,10);
+    setLS(LS.lb, state.leaderboard);
+  }
+  function renderLeaderboard(){
+    leaderList.innerHTML='';
+    if(state.leaderboard.length===0){ leaderList.textContent='No records yet.'; return; }
+    state.leaderboard.forEach((r,i)=>{
+      const div=document.createElement('div');
+      div.className='panel';
+      div.style.display='flex'; div.style.justifyContent='space-between';
+      div.innerHTML=`<span>#${i+1} — <b>${r.name}</b></span><span>${r.score} · <span class="hint">${r.date}</span></span>`;
+      leaderList.appendChild(div);
+    });
+  }
+
+  /* =========================
+     UI: Skins / Trails / Themes / Parts
+     ========================= */
+  function updateRocketSkin(){ rocketEl.textContent = skins[state.selectedSkin]?.emoji || '🚀'; }
+  function renderSkins(){
+    skinListDiv.innerHTML='';
+    skins.forEach((s,i)=>{
+      const owned = ownedSkins.has(s.key);
+      const div=document.createElement('div');
+      div.className='skinItem'+(i===state.selectedSkin?' selected':'') + (owned? '':' locked');
+      div.textContent=s.emoji;
+      div.title = owned? 'Owned':'Cost: '+s.cost+' gold';
+      div.onclick = ()=>{
+        if(owned){
+          state.selectedSkin=i; updateRocketSkin(); setLS(LS.skin, i); renderSkins(); toast(`Skin changed ${s.emoji}`);
+        } else {
+          if(state.totalGold>=s.cost){
+            if(confirm(`${s.emoji} — Buy for ${s.cost} gold?`)){
+              state.totalGold-=s.cost; ownedSkins.add(s.key);
+              setLS(LS.gold, state.totalGold);
+              setLS(LS.skinsOwned, [...ownedSkins]);
+              state.selectedSkin=i; setLS(LS.skin,i); updateRocketSkin();
+              renderSkins(); renderHeaderGold(); toast('Purchased!');
+            }
+          } else toast('Not enough gold.');
+        }
+      };
+      skinListDiv.appendChild(div);
+    });
+    goldAmountSpan.textContent = state.totalGold;
+  }
+  function renderTrails(){
+    trailListDiv.innerHTML='';
+    trails.forEach(t=>{
+      const owned = (t.cost===0) || (state.badges.owned.includes('StarCadet') && t.id===1) || (state.badges.owned.includes('MeteorTamer') && t.id===2) || (state.badges.owned.includes('GoldHoarder') && t.id===3);
+      const div=document.createElement('div');
+      div.className='trailItem'+(state.selectedTrail===t.id?' selected':'') + (owned?'':' locked');
+      div.textContent = t.icon + ' ' + t.name + (t.cost? ` (${t.cost})`:'');
+      div.onclick=()=>{
+        if(!owned){
+          if(state.totalGold>=t.cost){
+            if(confirm(`Buy ${t.name} trail for ${t.cost} gold?`)){
+              state.totalGold-=t.cost; setLS(LS.gold, state.totalGold); state.selectedTrail=t.id; setLS(LS.trail, t.id);
+              renderTrails(); renderHeaderGold(); toast('Trail purchased!');
+            }
+          } else { toast('Not enough gold.'); }
+          return;
+        }
+        state.selectedTrail=t.id; setLS(LS.trail, t.id); renderTrails(); toast('Trail selected');
+      };
+      trailListDiv.appendChild(div);
+    });
+  }
+  function renderThemes(){
+    themeList.innerHTML='';
+    themes.forEach(th=>{
+      const div=document.createElement('div');
+      div.className='themeItem'+(state.theme===th.id?' selected':'');
+      div.textContent = '🎨 '+th.label;
+      div.onclick = ()=>{
+        state.theme = th.id; setLS(LS.theme, th.id);
+        gameArea.setAttribute('data-theme', th.id);
+        renderThemes();
+      };
+      themeList.appendChild(div);
+    });
+    toggleHaptics.checked = !!state.haptics;
+    toggleSFX.checked = !!state.sfx;
+    toggleReduced.checked = !!state.reduce;
+    togglePerf.checked = !!state.perf;
+    toggleTilt.checked = !!state.tilt;
+    playerNameInput.value = state.name || '';
+  }
+  toggleHaptics.onchange=()=>{ state.haptics=toggleHaptics.checked; setLS(LS.haptics, state.haptics); };
+  toggleSFX.onchange=()=>{ state.sfx=toggleSFX.checked; setLS(LS.sfx, state.sfx); };
+  toggleReduced.onchange=()=>{ state.reduce=toggleReduced.checked; setLS(LS.reduce, state.reduce); };
+  togglePerf.onchange=()=>{ state.perf=togglePerf.checked; setLS(LS.perf, state.perf); };
+  toggleTilt.onchange=()=>{ state.tilt=toggleTilt.checked; setLS(LS.tilt, state.tilt); };
+  saveNameBtn.onclick=()=>{
+    const v = playerNameInput.value.trim().slice(0,18) || 'Pilot';
+    state.name = v; setLS(LS.name, v);
+    playerNameSpan.textContent = v; toast('Name updated');
+  };
+
+  function renderWorkshop(){
+    workshopList.innerHTML='';
+    ['nose','body','exhaust'].forEach(slot=>{
+      const row=document.createElement('div');
+      row.style.margin='10px 0';
+      const title = slot==='nose'?'Nose':(slot==='body'?'Body':'Exhaust');
+      const items = workshopParts[slot];
+      const inner = items.map(it=>{
+        const sel = state.parts[slot]===it.key? ' selected':'';
+        return `<span class="skinItem${sel}" role="button" aria-label="${title}: ${it.name}" data-slot="${slot}" data-key="${it.key}">${title}: ${it.name} <span class="tag">${it.bonus}</span> ${it.cost?`<span class="tag">${it.cost}</span>`:''}</span>`;
+      }).join(' ');
+      row.innerHTML = inner;
+      workshopList.appendChild(row);
+    });
+    workshopList.querySelectorAll('.skinItem').forEach(el=>{
+      el.onclick=()=>{
+        const slot=el.getAttribute('data-slot');
+        const key=+el.getAttribute('data-key');
+        const item = workshopParts[slot].find(i=>i.key===key);
+        if(item.cost && state.parts[slot]!==key){
+          if(state.totalGold>=item.cost){
+            if(confirm(`${item.name} (${item.bonus}) — Spend ${item.cost} gold?`)){
+              state.totalGold-=item.cost; setLS(LS.gold, state.totalGold);
+              state.parts[slot]=key; setLS(LS.parts, state.parts);
+              renderWorkshop(); renderHeaderGold(); toast('Part purchased!');
+            }
+          }else{ toast('Not enough gold.'); }
+        }else{
+          state.parts[slot]=key; setLS(LS.parts, state.parts);
+          renderWorkshop(); toast('Part selected');
+        }
+      };
+    });
+  }
+
+  /* =========================
+     SCREEN SWITCHING
+     ========================= */
+  function showScreen(el){
+    [menuScreen, skinScreen, themesScreen, achScreen, questsScreen, leaderScreen, gameOverScreen, pauseOverlay, workshopScreen].forEach(s=>s.classList.remove('show'));
+    if(el) el.classList.add('show');
+    document.getElementById('controls').style.display = (el===null)?'flex':'none';
+  }
+
+  /* =========================
+     PROFILE / HEADER
+     ========================= */
+  function renderHeaderGold(){ goldSpan.textContent = state.totalGold; totalGoldSpan.textContent = state.totalGold; }
+  function renderHUD(){
+    scoreSpan.textContent = Math.floor(state.score);
+    multiplierEl.textContent = 'x'+state.mult.toFixed(1).replace('.0','');
+    heartsEl.innerHTML = '♥'.repeat(state.lives).split('').map(()=>'<span class="heart">❤️</span>').join('');
+  }
+  function updateRocketTransform(){ rocketEl.style.transform = `translate(${state.x - 32}px, 0)`; }
+
+  /* =========================
+     TRAIL PARTICLES
+     ========================= */
+  let trailTimer=0;
+  function emitTrail(dt){
+    if(state.perf) return;
+    trailTimer += dt;
+    if(trailTimer>0.05){
+      trailTimer=0;
+      const tr=document.createElement('div'); tr.className='trail';
+      const gx = state.x + (Math.random()*10 - 5);
+      const gy = window.innerHeight - 64 - Math.random()*10;
+      tr.style.transform=`translate(${gx}px, ${gy}px)`;
+      if(state.selectedTrail===1) tr.textContent='⚡';
+      else if(state.selectedTrail===2) tr.textContent='⭐';
+      else if(state.selectedTrail===3) tr.textContent='●';
+      gameArea.appendChild(tr);
+      setTimeout(()=> tr.remove(), 400);
+    }
+  }
+
+  /* =========================
+     CONTROLS
+     ========================= */
+  function bindControls(){
+    leftBtn.addEventListener('pointerdown', ()=> state.leftPressed=true);
+    leftBtn.addEventListener('pointerup', ()=> state.leftPressed=false);
+    leftBtn.addEventListener('pointerleave', ()=> state.leftPressed=false);
+    rightBtn.addEventListener('pointerdown', ()=> state.rightPressed=true);
+    rightBtn.addEventListener('pointerup', ()=> state.rightPressed=false);
+    rightBtn.addEventListener('pointerleave', ()=> state.rightPressed=false);
+
+    window.addEventListener('keydown', (e)=>{
+      if(['ArrowLeft','ArrowRight','KeyA','KeyD','Space','KeyP'].includes(e.code)) e.preventDefault();
+      if(e.code==='ArrowLeft' || e.code==='KeyA') state.leftPressed=true;
+      if(e.code==='ArrowRight'|| e.code==='KeyD') state.rightPressed=true;
+      if(e.code==='KeyP'){ togglePause(); }
+      if(e.code==='Space' && state.gameOver && state.allowContinue) tryContinue();
+    }, {passive:false});
+    window.addEventListener('keyup', (e)=>{
+      if(e.code==='ArrowLeft' || e.code==='KeyA') state.leftPressed=false;
+      if(e.code==='ArrowRight'|| e.code==='KeyD') state.rightPressed=false;
+    });
+
+    // Tilt
+    window.addEventListener('deviceorientation', (ev)=>{
+      if(!state.tilt) return;
+      const gamma = ev.gamma || 0; // -90..90
+      state.tiltX = clamp(gamma/25, -1, 1);
+    });
+  }
+
+  /* =========================
+     GAME LOOP
+     ========================= */
+  let lastTs = 0;
+  function gameLoop(ts){
+    if(!state.running || state.paused) return;
+    const dt = Math.min(0.032, (ts - lastTs)/1000 || 0.016);
+    lastTs = ts;
+    state.elapsed += dt;
+
+    // Difficulty curve
+    const diff = 1 + state.elapsed/35;
+    const fallMul = state.powerups.slow ? 0.4 : 1;
+    const spawnRate = clamp(0.9/diff, 0.35, 0.9);
+
+    // Movement
+    let dir = 0;
+    if(state.tilt) dir += state.tiltX;
+    if(state.leftPressed) dir -= 1;
+    if(state.rightPressed) dir += 1;
+    state.vx = dir * state.speed;
+    state.x += state.vx * dt;
+    state.x = clamp(state.x, 32, window.innerWidth - 32);
+    updateRocketTransform();
+
+    // Trail
+    if(!state.reduce) emitTrail(dt);
+
+    // Spawning
+    state.spawnTimer += dt;
+    if(state.spawnTimer >= state.nextSpawn){
+      state.spawnTimer = 0;
+      state.nextSpawn = spawnRate + Math.random()*0.4;
+      const lane = window.innerWidth * (0.2 + 0.6*Math.random());
+      const r = Math.random();
+      if(r<0.60) createFalling('ob', lane);
+      else if(r<0.85) createFalling('gold', lane);
+      else createFalling('pow', lane);
+    }
+
+    // Objects
+    updateFalls(objects.obstacles, (o)=>{
+      o.y += o.speed*fallMul*dt;
+      o.el.style.transform = `translate(${o.x}px, ${o.y}px)`;
+      if(collide(o)){ hit(); removeObj(objects.obstacles, o); }
+      else if(o.y>window.innerHeight+80){ removeObj(objects.obstacles, o); }
+    });
+
+    updateFalls(objects.golds, (g)=>{
+      if(state.powerups.magnet){
+        const ry = window.innerHeight-80; 
+        const dx = state.x - g.x; const dy = ry - g.y;
+        const len = Math.hypot(dx,dy) || 1;
+        g.x += (dx/len)*200*dt;
+        g.y += (dy/len)*200*dt;
+      } else {
+        g.y += g.speed*fallMul*dt;
+      }
+      g.el.style.transform = `translate(${g.x}px, ${g.y}px)`;
+      if(collide(g)){ collectGold(g); removeObj(objects.golds, g); }
+      else if(g.y>window.innerHeight+80){ removeObj(objects.golds, g); }
+    });
+
+    updateFalls(objects.powerups, (p)=>{
+      p.y += p.speed*fallMul*dt;
+      p.el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+      if(collide(p)){ collectPower(p.char); removeObj(objects.powerups, p); }
+      else if(p.y>window.innerHeight+80){ removeObj(objects.powerups, p); }
+    });
+
+    // Power-up timers
+    updatePowerups(dt);
+
+    // Score tick
+    state.score += (10 * state.mult) * dt;
+    renderHUD();
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  function updateFalls(arr, fn){
+    for(let i=arr.length-1;i>=0;i--){
+      const obj=arr[i]; fn(obj);
+    }
+  }
+  function removeObj(arr, obj){ try{ obj.el.remove(); }catch{} const i=arr.indexOf(obj); if(i>-1) arr.splice(i,1); }
+
+  function collide(obj){
+    const r2 = rocketEl.getBoundingClientRect();
+    const r1 = {left: obj.x, right:obj.x+48, top:obj.y, bottom:obj.y+48};
+    const rr = {left: r2.left, right:r2.right, top: r2.top, bottom:r2.bottom};
+    return !(r1.right < rr.left || r1.left > rr.right || r1.bottom < rr.top || r1.top > rr.bottom);
+  }
+
+  /* =========================
+     GAME EVENTS
+     ========================= */
+  function hit(){
+    if(state.powerups.shield){
+      state.powerups.shield=false; state.powerTimers.shield=0;
+      sfx.play('hit'); vibrate(40);
+      flash('Shield absorbed a hit!');
+      return;
+    }
+    state.lives--;
+    sfx.play('hit'); vibrate(120);
+    screenShake(6, 180);
+    if(state.lives<=0){ endGame(false); }
+    renderHUD();
+  }
+  function collectGold(g){
+    state.score += 10*state.mult;
+    state.sessionGold += 10;
+    state.totalGold += 10;
+    setLS(LS.gold, state.totalGold);
+    renderHeaderGold();
+    sfx.play('coin'); vibrate(20);
+    // Combo
+    state.combo++;
+    const baseMult = 1 + Math.min(4, Math.floor(state.combo/5))*0.5;
+    state.mult = baseMult;
+    multiplierEl.textContent = 'x'+state.mult.toFixed(1).replace('.0','');
+    g.el.classList.add('shrink'); setTimeout(()=> g.el.remove(), 350);
+  }
+  function collectPower(sym){
+    sfx.play('power'); vibrate(30);
+    if(sym==='🛡️'){ state.powerups.shield=true; state.powerTimers.shield = 8 + (state.parts.body===1?1:0); flash('Shield up!'); }
+    if(sym==='🧲'){ state.powerups.magnet=true; state.powerTimers.magnet = 10; flash('Magnet on!'); }
+    if(sym==='🐢'){ state.powerups.slow=true; state.powerTimers.slow = 5; flash('Time slow!'); }
+  }
+  function updatePowerups(dt){
+    for(const k of ['shield','magnet','slow']){
+      if(state.powerups[k]){
+        state.powerTimers[k]-=dt;
+        if(state.powerTimers[k]<=0){
+          state.powerups[k]=false; state.powerTimers[k]=0;
+          if(k!=='shield') flash(k==='magnet'?'Magnet ended':'Speed normalized');
+        }
+      }
+    }
+  }
+
+  /* =========================
+     PAUSE / RESUME
+     ========================= */
+  function togglePause(){
+    if(!state.running || state.gameOver) return;
+    state.paused = !state.paused;
+    if(state.paused){ showScreen(pauseOverlay); }
+    else { showScreen(null); lastTs=performance.now(); requestAnimationFrame(gameLoop); }
+  }
+  resumeBtn.onclick = ()=> togglePause();
+  quitToMenuBtn.onclick = ()=> { state.running=false; showScreen(menuScreen); };
+
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden && state.running && !state.gameOver){ state.paused=true; showScreen(pauseOverlay); }
+  });
+
+  /* =========================
+     SCREEN SHAKE
+     ========================= */
+  let shakeT=0, shakeMag=0;
+  function screenShake(mag, durMs){
+    const prefersReduced = state.reduce;
+    if(prefersReduced) return;
+    shakeMag = mag; shakeT = durMs/1000;
+    const step = ()=>{
+      if(shakeT<=0) { gameArea.style.transform=''; return; }
+      shakeT -= 0.016;
+      const dx = (Math.random()*2-1)*shakeMag;
+      const dy = (Math.random()*2-1)*shakeMag;
+      gameArea.style.transform = `translate(${dx}px, ${dy}px)`;
+      requestAnimationFrame(step);
+    };
+    step();
+    setTimeout(()=> gameArea.style.transform='', durMs+50);
+  }
+
+  /* =========================
+     TOAST / FLASH
+     ========================= */
+  function toast(msg){
+    const d=document.createElement('div');
+    d.textContent=msg;
+    d.style.cssText='position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--panel);padding:10px 14px;border-radius:999px;z-index:4000;box-shadow:var(--shadow);font-weight:600';
+    document.body.appendChild(d);
+    setTimeout(()=> d.remove(), 1600);
+  }
+  function flash(msg){
+    const d=document.createElement('div');
+    d.textContent=msg;
+    d.style.cssText='position:fixed;left:50%;top:18%;transform:translateX(-50%);background:var(--panel);padding:8px 12px;border-radius:10px;z-index:4000;box-shadow:var(--shadow);font-weight:700';
+    document.body.appendChild(d);
+    setTimeout(()=> d.remove(), 1000);
+  }
+
+  /* =========================
+     START / END GAME
+     ========================= */
+  function startGame(){
+    state.running=true; state.paused=false; state.gameOver=false; state.allowContinue=true;
+    state.score=0; state.sessionGold=0; state.lives=state.maxLives; state.combo=0; state.mult=1;
+    state.elapsed=0; state.spawnTimer=0; state.nextSpawn=0.9; lastTs=performance.now();
+    [...objects.obstacles, ...objects.golds, ...objects.powerups].forEach(o=> o.el.remove());
+    objects.obstacles.length=0; objects.golds.length=0; objects.powerups.length=0;
+    state.x = window.innerWidth*0.5; updateRocketTransform();
+    renderHUD(); renderHeaderGold();
+    renderQuestsMini();
+    showScreen(null);
+    requestAnimationFrame(gameLoop);
+  }
+
+  function endGame(){
+    state.running=false; state.gameOver=true;
+    showScreen(gameOverScreen);
+    finalScoreSpan.textContent = Math.floor(state.score);
+    earnedGoldSpan.textContent = state.sessionGold;
+    if(state.score>state.best){ state.best = Math.floor(state.score); setLS(LS.best, state.best); }
+    pushLeaderboard(state.name, Math.floor(state.score));
+    renderProfile();
+    updateQuest('score', Math.floor(state.score));
+    updateQuest('combo', Math.floor(state.mult>=3?3:state.mult));
+    checkAchievements();
+  }
+
+  function tryContinue(){
+    if(!state.allowContinue) return;
+    if(state.totalGold>=50){
+      state.totalGold-=50; setLS(LS.gold, state.totalGold); renderHeaderGold();
+      state.gameOver=false; state.running=true; showScreen(null);
+      state.lives = 1; state.combo=0; state.mult=1; state.powerups={shield:false, magnet:false, slow:false};
+      state.elapsed=0; state.spawnTimer=0; state.nextSpawn=0.9; lastTs=performance.now();
+      state.allowContinue=false; continueRow.style.display='none';
+      requestAnimationFrame(gameLoop);
+    } else { toast('Not enough gold to continue'); }
+  }
+
+  continueBtn.onclick = tryContinue;
+  retryBtn.onclick = ()=>{ showScreen(null); startGame(); };
+  backToMenuBtn.onclick = ()=>{ showScreen(menuScreen); };
+
+  /* =========================
+     MENU BUTTONS
+     ========================= */
+  startGameBtn.onclick = ()=> startGame();
+  skinsBtn.onclick = ()=>{ renderSkins(); renderTrails(); goldAmountSpan.textContent=state.totalGold; showScreen(skinScreen); };
+  backFromSkinBtn.onclick = ()=> showScreen(menuScreen);
+
+  workshopBtn.onclick = ()=>{ renderWorkshop(); showScreen(workshopScreen); };
+  backFromWorkshopBtn.onclick = ()=> showScreen(menuScreen);
+
+  themesBtn.onclick = ()=>{ renderThemes(); showScreen(themesScreen); };
+  backFromThemesBtn.onclick = ()=> showScreen(menuScreen);
+
+  achBtn.onclick = ()=>{ renderBadges(); showScreen(achScreen); };
+  backFromAchBtn.onclick = ()=> showScreen(menuScreen);
+
+  questsBtn.onclick = ()=>{ renderQuestsScreen(); showScreen(questsScreen); };
+  backFromQuestsBtn.onclick = ()=> showScreen(menuScreen);
+
+  leaderBtn.onclick = ()=>{ renderLeaderboard(); showScreen(leaderScreen); };
+  backFromLeaderBtn.onclick = ()=> showScreen(menuScreen);
+
+  /* =========================
+     WINDOW / RESIZE
+     ========================= */
+  window.addEventListener('resize', ()=> {
+    state.x = clamp(state.x, 32, window.innerWidth-32);
+    updateRocketTransform();
+  });
+
+  /* =========================
+     INIT
+     ========================= */
+  function renderProfile(){
+    playerNameSpan.textContent = state.name;
+    activeBadgeSpan.textContent = state.badges.active || 'Rookie';
+    bestScoreSpan.textContent = state.best;
+    totalGoldSpan.textContent = state.totalGold;
+  }
+
+  function init(){
+    gameArea.setAttribute('data-theme', state.theme);
+    updateRocketSkin();
+    renderProfile();
+    ensureDailyQuests();
+    renderQuestsMini();
+    renderHeaderGold();
+    bindControls();
+  }
+  init();
+
+  toast('Move with ← → or A/D. Press P to pause.');
+})();
+</script>
+</body>
+</html>
